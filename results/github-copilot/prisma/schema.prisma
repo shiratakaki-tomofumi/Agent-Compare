@@ -1,0 +1,209 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String      @id @default(uuid())
+  email        String      @unique
+  password     String
+  name         String
+  role         Role        @default(MEMBER)
+  department   Department? @relation(fields: [departmentId], references: [id])
+  departmentId String?
+  position     String?
+  hireDate     DateTime?
+  isActive     Boolean     @default(true)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  deals        Deal[]      @relation("UserDeals")
+  tasks        Task[]      @relation("UserTasks")
+  expenses     Expense[]   @relation("ApplicantExpenses")
+  approvals    Expense[]   @relation("ApproverExpenses")
+  attendances  Attendance[]
+
+  @@index([departmentId])
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  MEMBER
+}
+
+model Department {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  description String?
+  users       User[]
+  projects    Project[]
+  budgets     Budget[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Customer {
+  id          String @id @default(uuid())
+  companyName String
+  contactName String
+  email       String
+  phone       String?
+  status      CustomerStatus @default(ACTIVE)
+  isDeleted   Boolean        @default(false)
+  deals       Deal[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+enum CustomerStatus {
+  ACTIVE
+  DORMANT
+}
+
+model Deal {
+  id          String   @id @default(uuid())
+  title       String
+  customer    Customer @relation(fields: [customerId], references: [id])
+  customerId  String
+  assignee    User     @relation(name: "UserDeals", fields: [assigneeId], references: [id])
+  assigneeId  String
+  amount      Int
+  probability Int      @default(0)
+  status      DealStatus @default(LEAD)
+  note        String?
+  closedAt    DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([customerId])
+  @@index([assigneeId])
+  @@index([status])
+}
+
+enum DealStatus {
+  LEAD
+  PROPOSAL
+  NEGOTIATION
+  WON
+  LOST
+}
+
+model Project {
+  id           String     @id @default(uuid())
+  name         String
+  description  String?
+  department   Department @relation(fields: [departmentId], references: [id])
+  departmentId String
+  status       ProjectStatus @default(PLANNING)
+  startDate    DateTime
+  endDate      DateTime
+  isDeleted    Boolean    @default(false)
+  tasks        Task[]
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([departmentId])
+}
+
+enum ProjectStatus {
+  PLANNING
+  IN_PROGRESS
+  COMPLETED
+  ON_HOLD
+}
+
+model Task {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  project     Project  @relation(fields: [projectId], references: [id])
+  projectId   String
+  assignee    User?    @relation(name: "UserTasks", fields: [assigneeId], references: [id])
+  assigneeId  String?
+  priority    TaskPriority @default(MEDIUM)
+  status      TaskStatus   @default(TODO)
+  dueDate     DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([projectId])
+  @@index([assigneeId])
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  REVIEW
+  DONE
+}
+
+model Expense {
+  id             String    @id @default(uuid())
+  applicant      User      @relation(name: "ApplicantExpenses", fields: [applicantId], references: [id])
+  applicantId    String
+  amount         Int
+  category       ExpenseCategory
+  description    String
+  expenseDate    DateTime
+  status         ExpenseStatus @default(PENDING)
+  approver       User?     @relation(name: "ApproverExpenses", fields: [approverId], references: [id])
+  approverId     String?
+  approverComment String?
+  approvedAt     DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([applicantId])
+  @@index([status])
+}
+
+enum ExpenseCategory {
+  TRAVEL
+  ENTERTAINMENT
+  SUPPLIES
+  OTHER
+}
+
+enum ExpenseStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model Budget {
+  id           String    @id @default(uuid())
+  department   Department @relation(fields: [departmentId], references: [id])
+  departmentId String
+  year         Int
+  month        Int
+  amount       Int
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([departmentId, year, month])
+}
+
+model Attendance {
+  id            String   @id @default(uuid())
+  user          User     @relation(fields: [userId], references: [id])
+  userId        String
+  date          DateTime
+  checkIn       DateTime?
+  checkOut      DateTime?
+  overtimeHours Float    @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([userId, date])
+}

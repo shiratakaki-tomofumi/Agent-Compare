@@ -1,0 +1,261 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== ユーザー・ロール ====================
+
+enum Role {
+  ADMIN
+  MANAGER
+  MEMBER
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique @db.VarChar(255)
+  password      String    @db.Text // ハッシュ化済み
+  name          String    @db.VarChar(100)
+  role          Role      @default(MEMBER)
+  departmentId  String?   @db.VarChar(36)
+  position      String?   @db.VarChar(50)
+  hireDate      DateTime?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now()) @updatedAt
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  department    Department? @relation(fields: [departmentId], references: [id])
+  deals         Deal[]      @relation("DealAssignee")
+  tasks         Task[]      @relation("TaskAssignee")
+  expensesAsApplicant Expense[] @relation("ExpenseApplicant")
+  expensesAsApprover  Expense[] @relation("ExpenseApprover")
+  attendances   Attendance[]
+
+  @@index([email])
+  @@index([departmentId])
+}
+
+// ==================== 部署管理 ====================
+
+model Department {
+  id          String    @id @default(uuid())
+  name        String    @unique @db.VarChar(100)
+  description String?   @db.Text
+  createdAt   DateTime  @default(now()) @updatedAt
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  users       User[]
+  projects    Project[]
+  budgets     Budget[]
+
+  @@index([name])
+}
+
+// ==================== 営業管理 ====================
+
+enum CustomerStatus {
+  ACTIVE
+  DORMANT
+}
+
+model Customer {
+  id            String           @id @default(uuid())
+  companyName   String           @db.VarChar(255)
+  contactName   String           @db.VarChar(100)
+  email         String           @db.VarChar(255)
+  phone         String?          @db.VarChar(20)
+  status        CustomerStatus   @default(ACTIVE)
+  isDeleted     Boolean          @default(false)
+  createdAt     DateTime         @default(now()) @updatedAt
+  updatedAt     DateTime         @updatedAt
+
+  // Relations
+  deals         Deal[]
+
+  @@index([companyName])
+  @@index([status])
+}
+
+enum DealStatus {
+  LEAD
+  PROPOSAL
+  NEGOTIATION
+  WON
+  LOST
+}
+
+model Deal {
+  id          String      @id @default(uuid())
+  title       String      @db.VarChar(255)
+  customerId  String      @db.VarChar(36)
+  assigneeId  String      @db.VarChar(36)
+  amount      Int
+  probability Int         @default(0)
+  status      DealStatus  @default(LEAD)
+  note        String?     @db.Text
+  closedAt    DateTime?
+  createdAt   DateTime    @default(now()) @updatedAt
+  updatedAt   DateTime    @updatedAt
+
+  // Relations
+  customer          Customer        @relation(fields: [customerId], references: [id])
+  assignee          User            @relation("DealAssignee", fields: [assigneeId], references: [id])
+
+  @@index([customerId])
+  @@index([assigneeId])
+  @@index([status])
+}
+
+// ==================== 案件管理 ====================
+
+enum ProjectStatus {
+  PLANNING
+  IN_PROGRESS
+  COMPLETED
+  ON_HOLD
+}
+
+model Project {
+  id          String        @id @default(uuid())
+  name        String        @db.VarChar(255)
+  description String?       @db.Text
+  departmentId String       @db.VarChar(36)
+  status      ProjectStatus @default(PLANNING)
+  startDate   DateTime
+  endDate     DateTime
+  isDeleted   Boolean       @default(false)
+  createdAt   DateTime      @default(now()) @updatedAt
+  updatedAt   DateTime      @updatedAt
+
+  // Relations
+  department    Department    @relation(fields: [departmentId], references: [id])
+  tasks         Task[]
+
+  @@index([departmentId])
+  @@index([status])
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  REVIEW
+  DONE
+}
+
+model Task {
+  id          String      @id @default(uuid())
+  title       String      @db.VarChar(255)
+  description String?     @db.Text
+  projectId   String      @db.VarChar(36)
+  assigneeId  String?     @db.VarChar(36)
+  priority    TaskPriority @default(MEDIUM)
+  status      TaskStatus  @default(TODO)
+  dueDate     DateTime?
+  createdAt   DateTime    @default(now()) @updatedAt
+  updatedAt   DateTime    @updatedAt
+
+  // Relations
+  project     Project         @relation(fields: [projectId], references: [id])
+  assignee    User?           @relation("TaskAssignee", fields: [assigneeId], references: [id])
+
+  @@index([projectId])
+  @@index([assigneeId])
+}
+
+// ==================== 財務管理 ====================
+
+enum ExpenseCategory {
+  TRAVEL
+  ENTERTAINMENT
+  SUPPLIES
+  OTHER
+}
+
+enum ExpenseStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model Expense {
+  id                String           @id @default(uuid())
+  applicantId       String           @db.VarChar(36)
+  amount            Int
+  category          ExpenseCategory
+  description       String           @db.Text
+  expenseDate       DateTime
+  status            ExpenseStatus    @default(PENDING)
+  approverId        String?          @db.VarChar(36)
+  approverComment   String?          @db.Text
+  approvedAt        DateTime?
+  createdAt         DateTime         @default(now()) @updatedAt
+  updatedAt         DateTime         @updatedAt
+
+  // Relations
+  applicant         User              @relation("ExpenseApplicant", fields: [applicantId], references: [id])
+  approver          User?             @relation("ExpenseApprover", fields: [approverId], references: [id])
+
+  @@index([applicantId])
+  @@index([status])
+  @@index([category])
+}
+
+model Budget {
+  id          String    @id @default(uuid())
+  departmentId String   @db.VarChar(36)
+  year        Int
+  month       Int
+  amount      Int
+  createdAt   DateTime  @default(now()) @updatedAt
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  department  Department  @relation(fields: [departmentId], references: [id])
+
+  @@unique([departmentId, year, month])
+  @@index([year, month])
+}
+
+// ==================== 人事管理（勤怠・売上） ====================
+
+model Attendance {
+  id           String    @id @default(uuid())
+  userId       String    @db.VarChar(36)
+  date         DateTime
+  checkIn      DateTime?
+  checkOut     DateTime?
+  overtimeHours Float    @default(0.0)
+  createdAt    DateTime  @default(now()) @updatedAt
+  updatedAt    DateTime  @updatedAt
+
+  // Relations
+  user         User        @relation(fields: [userId], references: [id])
+
+  @@unique([userId, date])
+  @@index([userId])
+}
+
+model Revenue {
+  id       String    @id @default(uuid())
+  year     Int
+  month    Int
+  amount   Int
+  target   Int
+  createdAt DateTime @default(now()) @updatedAt
+  updatedAt DateTime @updatedAt
+
+  @@unique([year, month])
+  @@index([year, month])
+}

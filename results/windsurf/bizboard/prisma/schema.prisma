@@ -1,0 +1,248 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  password     String
+  name         String
+  role         UserRole  @default(MEMBER)
+  departmentId String?   @map("department_id")
+  position     String?
+  hireDate     DateTime? @map("hire_date")
+  isActive     Boolean   @default(true) @map("is_active")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  department       Department? @relation(fields: [departmentId], references: [id])
+  assignedDeals    Deal[]      @relation("DealAssignee")
+  assignedTasks    Task[]      @relation("TaskAssignee")
+  appliedExpenses  Expense[]   @relation("ExpenseApplicant")
+  approvedExpenses Expense[]   @relation("ExpenseApprover")
+  attendances      Attendance[]
+
+  @@map("users")
+}
+
+model Department {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  users     User[]     @relation
+  projects  Project[]
+  budgets   Budget[]
+
+  @@map("departments")
+}
+
+model Customer {
+  id           String        @id @default(uuid())
+  companyName  String        @map("company_name")
+  contactName  String        @map("contact_name")
+  email        String
+  phone        String?
+  status       CustomerStatus @default(ACTIVE)
+  isDeleted    Boolean       @default(false) @map("is_deleted")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  deals Deal[]
+
+  @@map("customers")
+}
+
+model Deal {
+  id          String     @id @default(uuid())
+  title       String
+  customerId  String     @map("customer_id")
+  assigneeId  String     @map("assignee_id")
+  amount      Int
+  probability Int        @default(0)
+  status      DealStatus @default(LEAD)
+  note        String?
+  closedAt    DateTime?  @map("closed_at")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  // Relations
+  customer Customer @relation(fields: [customerId], references: [id])
+  assignee User     @relation("DealAssignee", fields: [assigneeId], references: [id])
+
+  @@map("deals")
+}
+
+model Project {
+  id           String       @id @default(uuid())
+  name         String
+  description  String?
+  departmentId String       @map("department_id")
+  status       ProjectStatus @default(PLANNING)
+  startDate    DateTime     @map("start_date")
+  endDate      DateTime     @map("end_date")
+  isDeleted    Boolean      @default(false) @map("is_deleted")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  // Relations
+  department Department @relation(fields: [departmentId], references: [id])
+  tasks      Task[]
+
+  @@map("projects")
+}
+
+model Task {
+  id          String     @id @default(uuid())
+  title       String
+  description String?
+  projectId   String     @map("project_id")
+  assigneeId  String?    @map("assignee_id")
+  priority    Priority   @default(MEDIUM)
+  status      TaskStatus @default(TODO)
+  dueDate     DateTime?  @map("due_date")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  // Relations
+  project  Project @relation(fields: [projectId], references: [id])
+  assignee User?   @relation("TaskAssignee", fields: [assigneeId], references: [id])
+
+  @@map("tasks")
+}
+
+model Expense {
+  id              String        @id @default(uuid())
+  applicantId     String        @map("applicant_id")
+  amount          Int
+  category        ExpenseCategory
+  description     String
+  expenseDate     DateTime      @map("expense_date")
+  status          ExpenseStatus @default(PENDING)
+  approverId      String?       @map("approver_id")
+  approverComment String?       @map("approver_comment")
+  approvedAt      DateTime?     @map("approved_at")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  applicant User  @relation("ExpenseApplicant", fields: [applicantId], references: [id])
+  approver  User? @relation("ExpenseApprover", fields: [approverId], references: [id])
+
+  @@map("expenses")
+}
+
+model Budget {
+  id           String   @id @default(uuid())
+  departmentId String   @map("department_id")
+  year         Int
+  month        Int
+  amount       Int
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  department Department @relation(fields: [departmentId], references: [id])
+
+  @@unique([departmentId, year, month])
+  @@map("budgets")
+}
+
+model Attendance {
+  id            String   @id @default(uuid())
+  userId        String   @map("user_id")
+  date          DateTime
+  checkIn       DateTime? @map("check_in")
+  checkOut      DateTime? @map("check_out")
+  overtimeHours Float    @default(0) @map("overtime_hours")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, date])
+  @@map("attendances")
+}
+
+model Revenue {
+  id        String   @id @default(uuid())
+  year      Int
+  month     Int
+  amount    Int
+  target    Int
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([year, month])
+  @@map("revenues")
+}
+
+// Enums
+enum UserRole {
+  ADMIN
+  MANAGER
+  MEMBER
+}
+
+enum CustomerStatus {
+  ACTIVE
+  DORMANT
+}
+
+enum DealStatus {
+  LEAD
+  PROPOSAL
+  NEGOTIATION
+  WON
+  LOST
+}
+
+enum ProjectStatus {
+  PLANNING
+  IN_PROGRESS
+  COMPLETED
+  ON_HOLD
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  REVIEW
+  DONE
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum ExpenseCategory {
+  TRAVEL
+  ENTERTAINMENT
+  SUPPLIES
+  OTHER
+}
+
+enum ExpenseStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
